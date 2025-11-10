@@ -30,6 +30,7 @@ class CameraStreamApp:
         self.y2 = None
         self.camera_index = camera_index
         self.curr_frame = None
+        self.action = 1
         self._register_routes()
 
     def _register_routes(self):
@@ -85,17 +86,21 @@ class CameraStreamApp:
         data2 = request.form.get("y1")
         data3 = request.form.get("x2")
         data4 = request.form.get("y2")
+        data5 = request.form.get("action")
         self.x1 = data
         self.y1 = data2
         self.x2 = data3
         self.y2 = data4
+        self.action = data5
         return "recieved"
 
     
     def get_data(self):
         """Route handler for getting coordinates"""
+        if self.x1 is None or self.y1 is None or self.x2 is None or self.y2 is None:
+            return Response(status=400)
         frame = self.curr_frame.tolist()
-        all_data = {"x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2, "frame": frame}
+        all_data = {"action": self.action, "x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2, "frame": frame}
         response = self.app.response_class(
             response=json.dumps(all_data),
             status=200,
