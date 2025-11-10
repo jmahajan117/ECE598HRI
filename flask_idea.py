@@ -38,7 +38,6 @@ class CameraStreamApp:
         self.app.post("/send_coords")(self.send_coords)
         self.app.route("/get_coords")(self.get_coords)
         self.app.get("/video")(self.video)
-        self.app.get("/get_frame")(self.get_frame)
 
     def frames(self):
         """Generator function for video frames"""
@@ -92,21 +91,13 @@ class CameraStreamApp:
         self.y2 = data4
         return "recieved"
 
-    def get_frame(self):
-        """Route handler for getting frame"""
-        frame = self.curr_frame.to_list()
-        response = self.app.response_class(
-            response=json.dumps(frame),
-            status=200,
-            mimetype='application/json'
-        )
-        self.curr_frame = None
-        return response
-
+    
     def get_coords(self):
         """Route handler for getting coordinates"""
+        frame = self.curr_frame.to_list()
+        all_data = {"x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2, "frame": frame}
         response = self.app.response_class(
-            response=json.dumps({"x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2}),
+            response=json.dumps(all_data),
             status=200,
             mimetype='application/json'
         )
@@ -114,6 +105,7 @@ class CameraStreamApp:
         self.y1 = None
         self.x2 = None
         self.y2 = None
+        self.curr_frame = None
         return response
 
     def video(self):
