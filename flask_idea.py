@@ -38,6 +38,7 @@ class CameraStreamApp:
         self.app.post("/send_coords")(self.send_coords)
         self.app.route("/get_coords")(self.get_coords)
         self.app.get("/video")(self.video)
+        self.app.get("/get_frame")(self.get_frame)
 
     def frames(self):
         """Generator function for video frames"""
