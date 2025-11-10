@@ -36,7 +36,7 @@ class CameraStreamApp:
         """Register all Flask routes"""
         self.app.get("/")(self.index)
         self.app.post("/send_coords")(self.send_coords)
-        self.app.route("/get_coords")(self.get_coords)
+        self.app.route("/get_data")(self.get_data)
         self.app.get("/video")(self.video)
 
     def frames(self):
@@ -92,9 +92,9 @@ class CameraStreamApp:
         return "recieved"
 
     
-    def get_coords(self):
+    def get_data(self):
         """Route handler for getting coordinates"""
-        frame = self.curr_frame.to_list()
+        frame = self.curr_frame.tolist()
         all_data = {"x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2, "frame": frame}
         response = self.app.response_class(
             response=json.dumps(all_data),
