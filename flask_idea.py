@@ -245,7 +245,7 @@ class CameraStreamApp:
             formData.append('y1', '0');
             formData.append('x2', '0');
             formData.append('y2', '0');
-            formData.append('action', '1');
+            formData.append('action', '0');
             
             fetch('/send_coords', {
               method: 'POST',
