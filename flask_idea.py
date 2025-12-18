@@ -2,6 +2,7 @@
 import cv2
 from flask import Flask, Response, render_template_string, request
 import json
+import threading
 
 
 class CameraStreamApp:
@@ -92,6 +93,31 @@ class CameraStreamApp:
           #send-button.show {
             display: block;
           }
+          #stop-button {
+            padding: 12px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+            transition: all 0.3s ease;
+          }
+          #stop-button:hover {
+            background: #da190b;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(244, 67, 54, 0.6);
+          }
+          #stop-button:active {
+            transform: translateY(0);
+          }
+          #button-container {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+          }
         </style>
       </head>
       <body>
@@ -110,7 +136,10 @@ class CameraStreamApp:
               <span class="coord-value" id="point2-coords">Click again for second point</span>
             </div>
           </div>
-          <button id="send-button">Send</button>
+          <div id="button-container">
+            <button id="send-button">Send</button>
+            <button id="stop-button">Stop</button>
+          </div>
         </div>
 
         <script>
@@ -120,6 +149,7 @@ class CameraStreamApp:
           const point1Display = document.getElementById('point1-coords');
           const point2Display = document.getElementById('point2-coords');
           const sendButton = document.getElementById('send-button');
+          const stopButton = document.getElementById('stop-button');
 
           let point1 = null;
           let point2 = null;
@@ -209,6 +239,23 @@ class CameraStreamApp:
             ctx.clearRect(0, 0, canvas.width, canvas.height);
           });
 
+          stopButton.addEventListener('click', function() {
+            const formData = new FormData();
+            formData.append('x1', '0');
+            formData.append('y1', '0');
+            formData.append('x2', '0');
+            formData.append('y2', '0');
+            formData.append('action', '1');
+            
+            fetch('/send_coords', {
+              method: 'POST',
+              body: formData
+            })
+            .then(response => response.text())
+            .then(data => console.log('Stop command sent:', data))
+            .catch(error => console.error('Error:', error));
+          });
+
           function sendCoordinates() {
             if (point1 && point2) {
               const formData = new FormData();
@@ -240,7 +287,9 @@ class CameraStreamApp:
         self.y2 = None
         self.camera_index = camera_index
         self.curr_frame = None
+        self.captured_frame = None
         self.action = 1
+        self.frame_lock = threading.Lock()
         self._register_routes()
 
     def _register_routes(self):
@@ -269,11 +318,12 @@ class CameraStreamApp:
                 # (Optional) flip for selfie view:
                 # frame = cv2.flip(frame, 1)
 
+                # Update current frame (thread-safe)
+                with self.frame_lock:
+                    self.curr_frame = frame.copy()
+
                 # Encode as JPEG
                 ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                if self.curr_frame is None:
-                    self.curr_frame = frame
-                    print(self.curr_frame.shape)
                 if not ok:
                     continue
                 jpg = buf.tobytes()
@@ -302,6 +352,14 @@ class CameraStreamApp:
         self.x2 = data3
         self.y2 = data4
         self.action = data5
+        
+        # Capture the current frame at this moment (thread-safe)
+        with self.frame_lock:
+            if self.curr_frame is not None:
+                self.captured_frame = self.curr_frame.copy()
+            else:
+                self.captured_frame = None
+        
         return "recieved"
 
     
@@ -309,18 +367,28 @@ class CameraStreamApp:
         """Route handler for getting coordinates"""
         if self.x1 is None or self.y1 is None or self.x2 is None or self.y2 is None:
             return Response(status=400)
-        frame = self.curr_frame.tolist()
+        
+        # Get the captured frame (thread-safe)
+        with self.frame_lock:
+            if self.captured_frame is None:
+                return Response(status=400)
+            frame = self.captured_frame.tolist()
+        
         all_data = {"action": self.action, "x1": self.x1, "y1": self.y1, "x2": self.x2, "y2": self.y2, "frame": frame}
         response = self.app.response_class(
             response=json.dumps(all_data),
             status=200,
             mimetype='application/json'
         )
+        
+        # Clear the data after sending
         self.x1 = None
         self.y1 = None
         self.x2 = None
         self.y2 = None
-        self.curr_frame = None
+        with self.frame_lock:
+            self.captured_frame = None
+        
         return response
 
     def video(self):
@@ -337,4 +405,4 @@ if __name__ == "__main__":
     # For local testing: http://127.0.0.1:8000
     # Expose on your LAN: host="0.0.0.0" (then visit http://<your-ip>:8000)
     app = CameraStreamApp(camera_index=0)
-    app.run(host="0.0.0.0", port=72, debug=False, threaded=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=7000, debug=False, threaded=True, use_reloader=False)
